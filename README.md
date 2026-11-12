@@ -11,6 +11,11 @@ the Secure Boot key hierarchy (PK → KEK → db / dbx) and the shim/MOK state.
 It replays the TPM measured-boot event log bank by bank and checks the result
 against the live PCRs. It never writes a firmware variable or extends a PCR.
 
+
+<p align="center"><img src="docs/demo.svg" alt="bootcha1n demo" width="100%"></p>
+
+<sub>Recorded from real output against `tests/fixtures/demo`, a deliberately weak machine (PKfail PK, test KEK, stale dbx, shim validation off, PCR4 tampered) built by `tools/make_fixture.py`. Regenerate with `python3 tools/gen_demo.py`.</sub>
+
 ## What it checks
 
 | ID | Severity | Check |
@@ -53,6 +58,31 @@ against the live PCRs. It never writes a firmware variable or extends a PCR.
 - **Live PCRs:** sysfs `pcr-<alg>/N` is read first. Otherwise bootcha1n sends
   a raw `TPM2_PCR_Read`, built and parsed in-tree, through `/dev/tpmrm0` or
   Windows TBS. No tpm2-tools, no TSS.
+
+## Install
+
+**Pre-built binaries** (from [Releases](https://github.com/grimh3xx/bootcha1n/releases/latest)):
+
+```sh
+# Linux x64
+curl -fsSL -o bootcha1n https://github.com/grimh3xx/bootcha1n/releases/latest/download/bootcha1n-linux-x64
+chmod +x bootcha1n && sudo mv bootcha1n /usr/local/bin/
+```
+
+```powershell
+# Windows x64 (PowerShell)
+iwr https://github.com/grimh3xx/bootcha1n/releases/latest/download/bootcha1n-windows-x64.exe -OutFile bootcha1n.exe
+.\bootcha1n.exe --help
+```
+
+**From source** (Rust 1.82+):
+
+```sh
+cargo install --git https://github.com/grimh3xx/bootcha1n
+```
+
+Needs an elevated shell on Windows (firmware variables) and root on Linux for the TPM event log. The binaries are not code-signed, so SmartScreen or Defender may flag
+them heuristically. Build from source if you prefer to verify.
 
 ## Usage
 

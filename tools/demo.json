@@ -1,0 +1,9 @@
+{
+  "title": "bootcha1n — Secure Boot & measured-boot audit (demo fixture)",
+  "prompt": {"user": "grimh3xx@bootcha1n", "path": "~/bootcha1n"},
+  "steps": [
+    {"show": "bootcha1n --efivars fx/efivars --eventlog fx/eventlog.bin --pcrs fx/tpm",
+     "run": "ln -sfn tests/fixtures/demo fx && ./target/release/bootcha1n --efivars fx/efivars --eventlog fx/eventlog.bin --pcrs fx/tpm; rm -f fx",
+     "chunk": 2, "hold": 60}
+  ]
+}

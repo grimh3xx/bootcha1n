@@ -11,9 +11,7 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 
-#[cfg(not(windows))]
-use crate::tcg::alg_name;
-use crate::tcg::NUM_PCRS;
+use crate::tcg::{alg_name, NUM_PCRS};
 
 const TPM_ST_NO_SESSIONS: u16 = 0x8001;
 const TPM_CC_PCR_READ: u32 = 0x0000_017E;
@@ -136,11 +134,9 @@ pub fn read_log() -> Result<(Vec<u8>, String)> {
 
 /// Live PCRs: sysfs (kernel >= 5.12, world-readable) first, then a raw
 /// PCR_Read through the kernel resource manager.
-#[cfg(not(windows))]
-pub fn read_live(algs: &[u16], sysfs_root: Option<&Path>) -> Option<Live> {
-    let root = sysfs_root
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("/sys/class/tpm/tpm0"));
+/// PCRs laid out like sysfs (`pcr-<alg>/<index>`, hex text). Used for the
+/// kernel's own view on Linux and for offline `--pcrs` directories anywhere.
+pub fn read_pcr_dir(root: &Path, algs: &[u16]) -> Option<Live> {
     let mut banks = BTreeMap::new();
     for &alg in algs {
         let dir = root.join(format!("pcr-{}", alg_name(alg)));
@@ -156,11 +152,19 @@ pub fn read_live(algs: &[u16], sysfs_root: Option<&Path>) -> Option<Live> {
             .collect();
         banks.insert(alg, vals);
     }
-    if !banks.is_empty() {
-        return Some(Live {
-            source: root.display().to_string(),
-            banks,
-        });
+    (!banks.is_empty()).then(|| Live {
+        source: root.display().to_string(),
+        banks,
+    })
+}
+
+#[cfg(not(windows))]
+pub fn read_live(algs: &[u16], sysfs_root: Option<&Path>) -> Option<Live> {
+    let root = sysfs_root
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("/sys/class/tpm/tpm0"));
+    if let Some(live) = read_pcr_dir(&root, algs) {
+        return Some(live);
     }
     if sysfs_root.is_some() {
         return None;
@@ -181,6 +185,7 @@ pub fn read_live(algs: &[u16], sysfs_root: Option<&Path>) -> Option<Live> {
         buf.truncate(n);
         Ok(buf)
     };
+    let mut banks = BTreeMap::new();
     for &alg in algs {
         if let Ok(v) = read_bank(&mut transport, alg) {
             if v.iter().any(Option::is_some) {
@@ -217,7 +222,10 @@ pub fn read_log() -> Result<(Vec<u8>, String)> {
 }
 
 #[cfg(windows)]
-pub fn read_live(algs: &[u16], _sysfs_root: Option<&Path>) -> Option<Live> {
+pub fn read_live(algs: &[u16], pcr_dir: Option<&Path>) -> Option<Live> {
+    if let Some(d) = pcr_dir {
+        return read_pcr_dir(d, algs);
+    }
     use windows_sys::Win32::System::TpmBaseServices::*;
     let mut params = TBS_CONTEXT_PARAMS2 {
         version: TBS_CONTEXT_VERSION_TWO,
